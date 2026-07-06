@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Kanban Board</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --board-bg: #1C2128;
+    --lane-bg: #242B35;
+    --lane-bg-hover: #2A3240;
+    --paper: #F6F1E7;
+    --paper-2: #EFE8D8;
+    --ink: #20242B;
+    --ink-soft: #5B5748;
+    --violet: #8B6CF2;
+    --violet-dim: #6E56C4;
+    --amber: #F0A93A;
+    --text-lo: #A9B0BC;
+    --text-hi: #E8E9ED;
+    --danger: #E0654F;
+    --radius: 3px;
+    font-family: 'Inter', sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--board-bg);
+    background-image:
+      radial-gradient(circle at 1px 1px, rgba(255,255,255,0.035) 1px, transparent 0);
+    background-size: 22px 22px;
+    color:var(--text-hi);
+    min-height:100vh;
+    padding:28px 28px 60px;
+  }
+  .board-header{
+    display:flex;
+    align-items:baseline;
+    justify-content:space-between;
+    margin-bottom:22px;
+    flex-wrap:wrap;
+    gap:10px;
+  }
+  .board-title{
+    font-family:'Sora', sans-serif;
+    font-weight:700;
+    font-size:22px;
+    letter-spacing:-0.01em;
+    color:var(--text-hi);
+    display:flex;
+    align-items:center;
+    gap:10px;
+  }
+  .board-title .pin{
+    width:9px;height:9px;border-radius:50%;
+    background:var(--amber);
+    box-shadow:0 0 0 3px rgba(240,169,58,0.18);
+  }
+  .board-sub{
+    font-family:'JetBrains Mono', monospace;
+    font-size:11.5px;
+    color:var(--text-lo);
+  }
+  .save-indicator{
+    font-family:'JetBrains Mono', monospace;
+    font-size:11px;
+    color:var(--text-lo);
+    display:flex;
+    align-items:center;
+    gap:6px;
+    opacity:0;
+    transition:opacity .4s ease;
+  }
+  .save-indicator.show{opacity:1;}
+  .save-indicator .dot{
+    width:6px;height:6px;border-radius:50%;
+    background:#5FCB8F;
+  }
+
+  .board{
+    display:flex;
+    gap:18px;
+    align-items:flex-start;
+    overflow-x:auto;
+    padding-bottom:20px;
+  }
+  .lane{
+    background:var(--lane-bg);
+    border-radius:6px;
+    width:272px;
+    flex:0 0 272px;
+    padding:14px 12px 12px;
+    border:1px solid rgba(255,255,255,0.04);
+    transition:background .15s ease;
+    display:flex;
+    flex-direction:column;
+  }
+  .lane.drag-over{
+    background:var(--lane-bg-hover);
+    box-shadow: inset 0 0 0 1.5px rgba(240,169,58,0.35);
+  }
+  .lane-head{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    margin-bottom:10px;
+    padding:0 2px;
+  }
+  .lane-name-wrap{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    min-width:0;
+  }
+  .lane-title{
+    font-family:'Sora', sans-serif;
+    font-weight:600;
+    font-size:13.5px;
+    color:var(--text-hi);
+    letter-spacing:0.01em;
+    text-transform:uppercase;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    border:none;
+    background:transparent;
+    outline:none;
+    width:100%;
+  }
+  .lane-title:focus{
+    color:var(--amber);
+  }
+  .lane-count{
+    font-family:'JetBrains Mono', monospace;
+    font-size:11px;
+    color:var(--text-lo);
+    background:rgba(255,255,255,0.05);
+    padding:1px 7px;
+    border-radius:10px;
+    flex-shrink:0;
+  }
+  .lane-delete{
+    background:none;
+    border:none;
+    color:var(--text-lo);
+    cursor:pointer;
+    font-size:15px;
+    line-height:1;
+    padding:2px 4px;
+    border-radius:4px;
+    flex-shrink:0;
+  }
+  .lane-delete:hover{ color:var(--danger); background:rgba(224,101,79,0.12); }
+
+  .card-list{
+    display:flex;
+    flex-direction:column;
+    gap:9px;
+    min-height:12px;
+  }
+
+  .card{
+    background:var(--paper);
+    color:var(--ink);
+    border-radius:var(--radius);
+    padding:10px 11px 9px;
+    position:relative;
+    cursor:grab;
+    box-shadow:
+      0 1px 0 rgba(0,0,0,0.25),
+      2px 4px 8px rgba(0,0,0,0.28);
+    transform: rotate(var(--tilt,0deg));
+    transition: transform .16s ease, box-shadow .16s ease;
+    border-left:3px solid var(--violet);
+  }
+  .card:hover{
+    transform: rotate(0deg) translateY(-1px);
+    box-shadow:
+      0 1px 0 rgba(0,0,0,0.25),
+      2px 8px 16px rgba(0,0,0,0.35);
+  }
+  .card.dragging{
+    opacity:0.35;
+  }
+  .card-pin{
+    position:absolute;
+    top:7px; right:8px;
+    width:6px;height:6px;
+    border-radius:50%;
+    background:var(--violet);
+  }
+  .card-text{
+    font-size:13.5px;
+    line-height:1.4;
+    font-weight:500;
+    color:var(--ink);
+    word-break:break-word;
+    padding-right:14px;
+    white-space:pre-wrap;
+  }
+  .card-meta{
+    margin-top:7px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+  }
+  .card-id{
+    font-family:'JetBrains Mono', monospace;
+    font-size:10px;
+    color:var(--ink-soft);
+    letter-spacing:0.02em;
+  }
+  .card-del{
+    background:none;
+    border:none;
+    color:var(--ink-soft);
+    font-size:13px;
+    cursor:pointer;
+    opacity:0;
+    transition:opacity .12s ease;
+    padding:0 2px;
+  }
+  .card:hover .card-del{opacity:0.7;}
+  .card-del:hover{opacity:1 !important; color:var(--danger);}
+
+  .card-ghost{
+    height:6px;
+    border-radius:3px;
+    background:rgba(240,169,58,0.5);
+    margin: -3px 0;
+  }
+
+  .add-card-form{
+    margin-top:9px;
+  }
+  .add-card-input{
+    width:100%;
+    background:var(--paper-2);
+    border:1.5px dashed rgba(32,36,43,0.25);
+    border-radius:var(--radius);
+    padding:8px 9px;
+    font-family:'Inter', sans-serif;
+    font-size:13px;
+    color:var(--ink);
+    resize:none;
+    outline:none;
+  }
+  .add-card-input::placeholder{color:var(--ink-soft);}
+  .add-card-input:focus{border-color:var(--violet);}
+
+  .add-card-btn{
+    width:100%;
+    margin-top:9px;
+    background:none;
+    border:none;
+    color:var(--text-lo);
+    font-family:'Inter', sans-serif;
+    font-size:13px;
+    font-weight:500;
+    text-align:left;
+    padding:7px 4px;
+    cursor:pointer;
+    border-radius:4px;
+    display:flex;
+    align-items:center;
+    gap:6px;
+  }
+  .add-card-btn:hover{
+    color:var(--text-hi);
+    background:rgba(255,255,255,0.05);
+  }
+  .add-card-actions{
+    display:flex;
+    gap:8px;
+    margin-top:7px;
+  }
+  .btn-primary{
+    background:var(--violet);
+    color:#fff;
+    border:none;
+    padding:6px 12px;
+    border-radius:4px;
+    font-size:12.5px;
+    font-weight:600;
+    font-family:'Inter', sans-serif;
+    cursor:pointer;
+  }
+  .btn-primary:hover{background:var(--violet-dim);}
+  .btn-text{
+    background:none;
+    border:none;
+    color:var(--text-lo);
+    font-size:12.5px;
+    cursor:pointer;
+    font-family:'Inter', sans-serif;
+  }
+  .btn-text:hover{color:var(--text-hi);}
+
+  .new-lane{
+    flex:0 0 220px;
+    display:flex;
+    flex-direction:column;
+  }
+  .new-lane-btn{
+    background:rgba(255,255,255,0.03);
+    border:1.5px dashed rgba(255,255,255,0.12);
+    border-radius:6px;
+    padding:12px;
+    color:var(--text-lo);
+    font-family:'Sora', sans-serif;
+    font-weight:600;
+    font-size:13px;
+    cursor:pointer;
+    display:flex;
+    align-items:center;
+    gap:8px;
+    justify-content:center;
+    height:44px;
+  }
+  .new-lane-btn:hover{
+    color:var(--text-hi);
+    border-color:var(--violet);
+    background:rgba(139,108,242,0.06);
+  }
+  .new-lane-input-wrap{
+    background:var(--lane-bg);
+    border-radius:6px;
+    padding:12px;
+    border:1px solid rgba(255,255,255,0.06);
+  }
+  .new-lane-input{
+    width:100%;
+    background:rgba(255,255,255,0.04);
+    border:1px solid rgba(255,255,255,0.1);
+    border-radius:4px;
+    padding:7px 8px;
+    color:var(--text-hi);
+    font-family:'Sora', sans-serif;
+    font-size:13px;
+    outline:none;
+    margin-bottom:8px;
+  }
+  .new-lane-input:focus{border-color:var(--violet);}
+
+  ::-webkit-scrollbar{height:10px; width:10px;}
+  ::-webkit-scrollbar-track{background:transparent;}
+  ::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.1); border-radius:6px;}
+  ::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,0.18);}
+</style>
+</head>
+<body>
+
+<div class="board-header">
+  <div>
+    <div class="board-title"><span class="pin"></span>Kanban Board</div>
+    <div class="board-sub">drag cards between lanes · saved automatically</div>
+  </div>
+  <div class="save-indicator" id="saveIndicator"><span class="dot"></span><span id="saveText">saved</span></div>
+</div>
+
+<div class="board" id="board"></div>
+
+<script>
+(function(){
+  const boardEl = document.getElementById('board');
+  const saveIndicator = document.getElementById('saveIndicator');
+  const saveText = document.getElementById('saveText');
+  const STORAGE_KEY = 'kanban-board-state';
+
+  const defaultState = {
+    lanes: [
+      { id: 'lane-todo', title: 'To Do', cardIds: ['c1','c2'] },
+      { id: 'lane-doing', title: 'In Progress', cardIds: ['c3'] },
+      { id: 'lane-done', title: 'Done', cardIds: [] }
+    ],
+    cards: {
+      c1: { id:'c1', text:'Sketch the board layout', createdAt: Date.now(), num: 1 },
+      c2: { id:'c2', text:'Wire up drag and drop', createdAt: Date.now(), num: 2 },
+      c3: { id:'c3', text:'Pick a color palette', createdAt: Date.now(), num: 3 }
+    },
+    nextNum: 4
+  };
+
+  let state = null;
+  let saveTimer = null;
+  let dragCardId = null;
+  let dragFromLane = null;
+
+  function flashSaved(text){
+    saveText.textContent = text;
+    saveIndicator.classList.add('show');
+    clearTimeout(saveIndicator._t);
+    saveIndicator._t = setTimeout(()=> saveIndicator.classList.remove('show'), 1400);
+  }
+
+  function loadState(){
+    try{
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if(raw){
+        state = JSON.parse(raw);
+      } else {
+        state = structuredClone(defaultState);
+      }
+    }catch(e){
+      state = structuredClone(defaultState);
+    }
+    render();
+  }
+
+  function saveState(){
+    try{
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      flashSaved('saved');
+    }catch(e){
+      flashSaved('save failed');
+    }
+  }
+
+  function queueSave(){
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(saveState, 250);
+  }
+
+  function tiltFor(id){
+    // deterministic small tilt per card id, so it doesn't jump around on re-render
+    let hash = 0;
+    for(let i=0;i<id.length;i++){ hash = (hash*31 + id.charCodeAt(i)) % 1000; }
+    return ((hash % 30) - 15) / 10; // -1.5deg .. 1.5deg
+  }
+
+  function render(){
+    boardEl.innerHTML = '';
+    state.lanes.forEach(lane => {
+      boardEl.appendChild(renderLane(lane));
+    });
+    boardEl.appendChild(renderNewLane());
+  }
+
+  function renderLane(lane){
+    const laneEl = document.createElement('div');
+    laneEl.className = 'lane';
+    laneEl.dataset.laneId = lane.id;
+
+    const head = document.createElement('div');
+    head.className = 'lane-head';
+
+    const nameWrap = document.createElement('div');
+    nameWrap.className = 'lane-name-wrap';
+
+    const titleInput = document.createElement('input');
+    titleInput.className = 'lane-title';
+    titleInput.value = lane.title;
+    titleInput.spellcheck = false;
+    titleInput.addEventListener('change', () => {
+      lane.title = titleInput.value.trim() || 'Untitled';
+      queueSave();
+    });
+
+    const count = document.createElement('span');
+    count.className = 'lane-count';
+    count.textContent = lane.cardIds.length;
+
+    nameWrap.appendChild(titleInput);
+    nameWrap.appendChild(count);
+
+    const delBtn = document.createElement('button');
+    delBtn.className = 'lane-delete';
+    delBtn.textContent = '×';
+    delBtn.title = 'Delete lane';
+    delBtn.addEventListener('click', () => {
+      if(lane.cardIds.length && !confirm('Delete this lane and its cards?')) return;
+      lane.cardIds.forEach(id => delete state.cards[id]);
+      state.lanes = state.lanes.filter(l => l.id !== lane.id);
+      queueSave();
+      render();
+    });
+
+    head.appendChild(nameWrap);
+    head.appendChild(delBtn);
+
+    const list = document.createElement('div');
+    list.className = 'card-list';
+    list.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      laneEl.classList.add('drag-over');
+    });
+    list.addEventListener('dragleave', (e) => {
+      if(!laneEl.contains(e.relatedTarget)) laneEl.classList.remove('drag-over');
+    });
+    list.addEventListener('drop', (e) => {
+      e.preventDefault();
+      laneEl.classList.remove('drag-over');
+      if(!dragCardId) return;
+      const fromLane = state.lanes.find(l => l.id === dragFromLane);
+      const toLane = lane;
+      if(fromLane) fromLane.cardIds = fromLane.cardIds.filter(id => id !== dragCardId);
+
+      // figure out insertion index based on drop position
+      const afterEl = getDragAfterElement(list, e.clientY);
+      let insertIndex = toLane.cardIds.length;
+      if(afterEl){
+        const afterId = afterEl.dataset.cardId;
+        insertIndex = toLane.cardIds.indexOf(afterId);
+      }
+      toLane.cardIds.splice(insertIndex, 0, dragCardId);
+      queueSave();
+      render();
+    });
+
+    lane.cardIds.forEach(cardId => {
+      const card = state.cards[cardId];
+      if(card) list.appendChild(renderCard(card, lane.id));
+    });
+
+    laneEl.appendChild(head);
+    laneEl.appendChild(list);
+    laneEl.appendChild(renderAddCard(lane));
+
+    return laneEl;
+  }
+
+  function getDragAfterElement(container, y){
+    const cards = [...container.querySelectorAll('.card:not(.dragging)')];
+    return cards.reduce((closest, child) => {
+      const box = child.getBoundingClientRect();
+      const offset = y - box.top - box.height/2;
+      if(offset < 0 && offset > closest.offset){
+        return { offset, element: child };
+      } else {
+        return closest;
+      }
+    }, { offset: -Infinity, element: null }).element;
+  }
+
+  function renderCard(card, laneId){
+    const el = document.createElement('div');
+    el.className = 'card';
+    el.dataset.cardId = card.id;
+    el.draggable = true;
+    el.style.setProperty('--tilt', tiltFor(card.id) + 'deg');
+
+    el.addEventListener('dragstart', (e) => {
+      dragCardId = card.id;
+      dragFromLane = laneId;
+      setTimeout(() => el.classList.add('dragging'), 0);
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', card.id);
+    });
+    el.addEventListener('dragend', () => {
+      el.classList.remove('dragging');
+      dragCardId = null;
+      dragFromLane = null;
+      document.querySelectorAll('.lane').forEach(l => l.classList.remove('drag-over'));
+    });
+
+    const pin = document.createElement('div');
+    pin.className = 'card-pin';
+
+    const text = document.createElement('div');
+    text.className = 'card-text';
+    text.textContent = card.text;
+
+    const meta = document.createElement('div');
+    meta.className = 'card-meta';
+    const idSpan = document.createElement('span');
+    idSpan.className = 'card-id';
+    idSpan.textContent = '#' + String(card.num).padStart(3,'0');
+    const delBtn = document.createElement('button');
+    delBtn.className = 'card-del';
+    delBtn.textContent = 'remove';
+    delBtn.addEventListener('click', () => {
+      const lane = state.lanes.find(l => l.id === laneId);
+      lane.cardIds = lane.cardIds.filter(id => id !== card.id);
+      delete state.cards[card.id];
+      queueSave();
+      render();
+    });
+    meta.appendChild(idSpan);
+    meta.appendChild(delBtn);
+
+    el.appendChild(pin);
+    el.appendChild(text);
+    el.appendChild(meta);
+    return el;
+  }
+
+  function renderAddCard(lane){
+    const wrap = document.createElement('div');
+
+    const btn = document.createElement('button');
+    btn.className = 'add-card-btn';
+    btn.innerHTML = '+ Add a card';
+
+    const form = document.createElement('div');
+    form.className = 'add-card-form';
+    form.style.display = 'none';
+
+    const textarea = document.createElement('textarea');
+    textarea.className = 'add-card-input';
+    textarea.placeholder = 'Card text…';
+    textarea.rows = 2;
+
+    const actions = document.createElement('div');
+    actions.className = 'add-card-actions';
+    const addBtn = document.createElement('button');
+    addBtn.className = 'btn-primary';
+    addBtn.textContent = 'Add card';
+    const cancelBtn = document.createElement('button');
+    cancelBtn.className = 'btn-text';
+    cancelBtn.textContent = 'Cancel';
+
+    function openForm(){
+      btn.style.display = 'none';
+      form.style.display = 'block';
+      textarea.focus();
+    }
+    function closeForm(){
+      textarea.value = '';
+      form.style.display = 'none';
+      btn.style.display = 'flex';
+    }
+    function submit(){
+      const val = textarea.value.trim();
+      if(!val) return;
+      const id = 'c' + Date.now() + Math.floor(Math.random()*1000);
+      const num = state.nextNum++;
+      state.cards[id] = { id, text: val, createdAt: Date.now(), num };
+      lane.cardIds.push(id);
+      queueSave();
+      render();
+    }
+
+    btn.addEventListener('click', openForm);
+    cancelBtn.addEventListener('click', closeForm);
+    addBtn.addEventListener('click', submit);
+    textarea.addEventListener('keydown', (e) => {
+      if(e.key === 'Enter' && !e.shiftKey){
+        e.preventDefault();
+        submit();
+      } else if(e.key === 'Escape'){
+        closeForm();
+      }
+    });
+
+    actions.appendChild(addBtn);
+    actions.appendChild(cancelBtn);
+    form.appendChild(textarea);
+    form.appendChild(actions);
+    wrap.appendChild(btn);
+    wrap.appendChild(form);
+    return wrap;
+  }
+
+  function renderNewLane(){
+    const wrap = document.createElement('div');
+    wrap.className = 'new-lane';
+
+    const btn = document.createElement('button');
+    btn.className = 'new-lane-btn';
+    btn.textContent = '+ Add another lane';
+
+    const formWrap = document.createElement('div');
+    formWrap.className = 'new-lane-input-wrap';
+    formWrap.style.display = 'none';
+
+    const input = document.createElement('input');
+    input.className = 'new-lane-input';
+    input.placeholder = 'Lane name…';
+
+    const actions = document.createElement('div');
+    actions.className = 'add-card-actions';
+    const addBtn = document.createElement('button');
+    addBtn.className = 'btn-primary';
+    addBtn.textContent = 'Add lane';
+    const cancelBtn = document.createElement('button');
+    cancelBtn.className = 'btn-text';
+    cancelBtn.textContent = 'Cancel';
+
+    function open(){
+      btn.style.display = 'none';
+      formWrap.style.display = 'block';
+      input.focus();
+    }
+    function close(){
+      input.value = '';
+      formWrap.style.display = 'none';
+      btn.style.display = 'flex';
+    }
+    function submit(){
+      const val = input.value.trim();
+      if(!val) return;
+      state.lanes.push({ id: 'lane-' + Date.now(), title: val, cardIds: [] });
+      queueSave();
+      render();
+    }
+
+    btn.addEventListener('click', open);
+    cancelBtn.addEventListener('click', close);
+    addBtn.addEventListener('click', submit);
+    input.addEventListener('keydown', (e) => {
+      if(e.key === 'Enter'){ e.preventDefault(); submit(); }
+      else if(e.key === 'Escape'){ close(); }
+    });
+
+    actions.appendChild(addBtn);
+    actions.appendChild(cancelBtn);
+    formWrap.appendChild(input);
+    formWrap.appendChild(actions);
+    wrap.appendChild(btn);
+    wrap.appendChild(formWrap);
+    return wrap;
+  }
+
+  loadState();
+})();
+</script>
+</body>
+</html>
